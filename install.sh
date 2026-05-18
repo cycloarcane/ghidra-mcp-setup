@@ -325,6 +325,18 @@ $SCRIPT_DIR/venv/bin/mcpo --port $MCPO_PORT -- \\
 # Then in Open WebUI: Settings → Tools → "+"
 #   URL:  http://127.0.0.1:$MCPO_PORT
 #   (OWUI auto-discovers the schema at /openapi.json)
+#
+# THE TWO SETTINGS THAT DECIDE WHETHER TOOL CALLING WORKS:
+#
+# 1. Settings → Models → <model> → Advanced Params → Function Calling = NATIVE
+#    (not "Default"). Without this, the model describes the tools as bash
+#    commands instead of invoking them. Apply this to every model you use.
+#
+# 2. In the chat input, click the tool icon and toggle 'ghidra' ON for the
+#    chat. Tools are registered globally but enabled per-chat.
+#
+# Also bump num_ctx to >= 16384 — decompile_function returns are 200-1000
+# tokens each, default ctx of 2048-4096 fills up after a few calls.
 EOF
 # Drop a stale SSE-mode hint from earlier installs so users don't follow it
 rm -f configs/generated/ollama-openwebui.sse.txt

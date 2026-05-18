@@ -237,6 +237,22 @@ Then in Open WebUI: **Settings → Tools → "+"**
 - Open WebUI auto-discovers the OpenAPI schema at `/openapi.json` and
   populates the tool list automatically.
 
+**Critical — set Function Calling to Native:** for each model you'll use
+with this tool, go to **Settings → Models → \<model\> → Advanced Params**
+and change **Function Calling** from `Default` to `Native`. Without this,
+Open WebUI shoves the tool descriptions into the system prompt as text and
+the model "responds" by describing the tools as if they were CLI commands
+(`bash` code blocks containing `list_functions` etc.) — it never actually
+invokes anything. Native mode uses Ollama's structured function-calling
+API and the tools become real callable functions. This is the #1 reason
+"the model sees the tools but won't call them."
+
+**Per-chat: enable the tool.** In the chat input area there's a tool icon
+(usually a "+" or wrench). Click it and toggle `ghidra` on. Registering a
+tool in Settings makes it *available*; it's still off by default in each
+new chat until you enable it. When active, you'll see a "Using tools"
+indicator above the model's response and tool-call cards in the stream.
+
 3. Pick a model that's good at tool-calling. For 24 GB VRAM:
    - `qwen2.5-coder:32b` — best all-rounder for RE tasks
    - `deepseek-coder-v2` — strong on decompiled C
@@ -314,6 +330,24 @@ OWUI wants OpenAPI. Run `mcpo` in front of the bridge (Step 3D) and point
 Open WebUI at `http://127.0.0.1:8000` instead. Sanity check:
 `curl http://127.0.0.1:8000/openapi.json | head -20` should return JSON
 listing the tools.
+
+**Model describes tools instead of calling them (Ollama / Open WebUI).**
+You see things like ` ```bash\nlist_functions\n``` ` or "I would call
+`decompile_function` on..." — the model is treating the tools as
+documentation, not invoking them. Two things to fix:
+1. **Settings → Models → \<your-model\> → Advanced Params → Function Calling:
+   set to `Native`** (not `Default`). Default uses a fragile text-protocol
+   that smaller/older tool-tuned models fail silently on.
+2. In the chat input, click the tool icon and enable `ghidra` for the chat.
+   Tools are registered globally but enabled per-chat.
+
+When both are correct, you'll see tool-call cards stream in the response.
+
+**Context too small — tools fire but conversation falls apart fast.**
+Each `decompile_function` result is 200–1000 tokens. Default `num_ctx` on
+Ollama is often 2048–4096. Bump it in **Settings → Models → \<model\> →
+Advanced Params → num_ctx** to at least `16384` (`32768` if VRAM allows).
+Re-check `nvidia-smi` after — larger context costs VRAM.
 
 **Activating the venv manually.**
 
