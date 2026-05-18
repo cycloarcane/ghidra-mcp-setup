@@ -8,6 +8,10 @@
 #   GHIDRAMCP_REPO   upstream git URL    (default: https://github.com/LaurieWired/GhidraMCP.git)
 #   GHIDRAMCP_REF    pin to tag/branch/sha (default: empty = upstream default branch)
 #   GHIDRAMCP_OWNER  GitHub owner/repo for release fetch (default: LaurieWired/GhidraMCP)
+#   GHIDRA_PORT      Ghidra plugin HTTP port    (default: 8080)
+#                    Set to e.g. 9090 if 8080 is taken (Open WebUI, etc.).
+#                    Must match the port configured in Ghidra's plugin options.
+#   MCP_SSE_PORT     bridge SSE listen port for Open WebUI path (default: 8081)
 #
 # Flags:
 #   --update    pull latest upstream into existing GhidraMCP checkout
@@ -22,6 +26,21 @@ cd "$SCRIPT_DIR"
 GHIDRAMCP_REPO="${GHIDRAMCP_REPO:-https://github.com/LaurieWired/GhidraMCP.git}"
 GHIDRAMCP_REF="${GHIDRAMCP_REF:-}"
 GHIDRAMCP_OWNER="${GHIDRAMCP_OWNER:-LaurieWired/GhidraMCP}"
+GHIDRA_PORT="${GHIDRA_PORT:-8080}"
+MCP_SSE_PORT="${MCP_SSE_PORT:-8081}"
+
+# Validate ports look like sensible integers (not user-attacker-controlled here,
+# but we splice these into generated configs so a non-numeric value would write
+# broken JSON. Fail loud instead of silently producing garbage.)
+for portname in GHIDRA_PORT MCP_SSE_PORT; do
+  portval="${!portname}"
+  if ! [[ "$portval" =~ ^[0-9]+$ ]] || [ "$portval" -lt 1 ] || [ "$portval" -gt 65535 ]; then
+    echo "[-] $portname='$portval' is not a valid TCP port" >&2
+    exit 2
+  fi
+done
+
+GHIDRA_SERVER_URL="http://127.0.0.1:${GHIDRA_PORT}/"
 UPDATE=0
 for arg in "$@"; do
   case "$arg" in
@@ -239,7 +258,7 @@ cat > configs/generated/claude-desktop.json <<EOF
       "args": [
         "$SCRIPT",
         "--ghidra-server",
-        "http://127.0.0.1:8080/"
+        "$GHIDRA_SERVER_URL"
       ]
     }
   }
@@ -254,7 +273,7 @@ cat > configs/generated/gemini-cli.json <<EOF
       "args": [
         "$SCRIPT",
         "--ghidra-server",
-        "http://127.0.0.1:8080/"
+        "$GHIDRA_SERVER_URL"
       ]
     }
   }
@@ -270,7 +289,7 @@ cat > configs/generated/claude-code.mcp.json <<EOF
       "args": [
         "$SCRIPT",
         "--ghidra-server",
-        "http://127.0.0.1:8080/"
+        "$GHIDRA_SERVER_URL"
       ]
     }
   }
@@ -279,14 +298,23 @@ EOF
 
 cat > configs/generated/ollama-openwebui.sse.txt <<EOF
 # Ollama path: run the bridge in SSE mode, then point Open WebUI at it.
+#
+# NOTE: Open WebUI itself defaults to port 8080. If you run both on the same
+# machine, give Ghidra a different port (GHIDRA_PORT=9090 ./install.sh) and
+# pick an MCP SSE port that doesn't collide either.
+#
+# Current generated values:
+#   GHIDRA_PORT  = $GHIDRA_PORT    (Ghidra plugin HTTP)
+#   MCP_SSE_PORT = $MCP_SSE_PORT    (this bridge's SSE listener)
+#
 # Start the bridge:
-$BRIDGE --transport sse --mcp-host 127.0.0.1 --mcp-port 8081 --ghidra-server http://127.0.0.1:8080/
+$BRIDGE --transport sse --mcp-host 127.0.0.1 --mcp-port $MCP_SSE_PORT --ghidra-server $GHIDRA_SERVER_URL
 
 # Then in Open WebUI: Settings → Tools → Add MCP Server
-#   URL:  http://127.0.0.1:8081/sse
+#   URL:  http://127.0.0.1:$MCP_SSE_PORT/sse
 EOF
 
-ok "Generated client configs in configs/generated/"
+ok "Generated client configs in configs/generated/ (Ghidra port: $GHIDRA_PORT)"
 
 # ─── done ──────────────────────────────────────────────────────────────────
 echo

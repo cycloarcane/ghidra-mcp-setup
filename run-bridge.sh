@@ -21,10 +21,11 @@ if [ ! -f "$BRIDGE" ]; then
   exit 1
 fi
 
-# Default: connect to a Ghidra plugin running on localhost:8080.
-# Users can override by passing their own --ghidra-server flag.
+# Default: connect to a Ghidra plugin on localhost.
+# Port can be overridden via GHIDRA_PORT env var (default 8080).
+# An explicit --ghidra-server flag on the command line wins over both.
 if ! printf '%s\0' "$@" | grep -qz -- '--ghidra-server'; then
-  set -- "$@" --ghidra-server "http://127.0.0.1:8080/"
+  set -- "$@" --ghidra-server "http://127.0.0.1:${GHIDRA_PORT:-8080}/"
 fi
 
 exec "$PY" "$BRIDGE" "$@"

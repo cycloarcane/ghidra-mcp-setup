@@ -17,6 +17,25 @@ between that HTTP server and the Model Context Protocol your LLM client speaks.
 
 ---
 
+## Port collision with Open WebUI? Read this first.
+
+Both Ghidra's MCP plugin **and** Open WebUI default to port `8080`. If you're
+running both on the same machine, one needs to move. Easiest is to give
+Ghidra a different port:
+
+```bash
+GHIDRA_PORT=9090 ./install.sh
+```
+
+That bakes `9090` into every generated MCP client config. Then in Ghidra:
+**File → Configure → gear icon next to GhidraMCPPlugin → Options for
+GhidraMCPPlugin** → change the port to **9090** and save. The two must match.
+
+Verify with `ss -ltn | grep -E ':(8080|9090) '` while Ghidra has a binary
+loaded in Code Browser.
+
+---
+
 ## Step 0 — Install prerequisites
 
 ```bash

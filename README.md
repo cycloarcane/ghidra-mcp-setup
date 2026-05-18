@@ -111,6 +111,13 @@ To refresh an existing checkout:
 ./install.sh --update
 ```
 
+To use a non-default Ghidra plugin port (e.g. because Open WebUI is on 8080):
+
+```bash
+GHIDRA_PORT=9090 ./install.sh
+# then change the port in Ghidra: Configure → gear → Options for GhidraMCPPlugin
+```
+
 ## License
 
 MIT. See `LICENSE`.
