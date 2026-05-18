@@ -16,11 +16,13 @@ This wraps [`LaurieWired/GhidraMCP`](https://github.com/LaurieWired/GhidraMCP) �
 the canonical Ghidra MCP plugin — with a Python venv, a shell-agnostic launcher,
 and pre-generated client configs.
 
-![Gemma 4 31B analyzing a stripped whoami binary through Open WebUI + mcpo + GhidraMCP — chaining list_functions and decompile_function calls to identify the binary from behavior alone](./docs/demo.png)
+![Gemma 4 31B running locally via Ollama, chaining list_functions and two decompile_function calls through GhidraMCP, then correctly identifying a stripped binary as GNU coreutils whoami — naming the entry → __libc_start_main → main flow, the setlocale/bindtextdomain locale init, and the geteuid → getpwuid → puts core logic](./docs/demo.png)
 
-*Gemma 4 31B running locally via Ollama, chaining Ghidra MCP tool calls to
-identify a stripped `whoami` binary from its decompiled `entry` function and
-the `geteuid`/`getpwuid`/`puts` call pattern — no symbols, no cloud.*
+*Gemma 4 31B (running locally on Ollama) chained `list_functions` and two
+`decompile_function` calls through GhidraMCP, then correctly identified a
+stripped binary as GNU coreutils `whoami` — from the `entry` → `__libc_start_main`
+flow and the `geteuid` → `getpwuid` → `puts` call pattern. No symbols, no
+cloud. Click to see the full reasoning trace.*
 
 ---
 
