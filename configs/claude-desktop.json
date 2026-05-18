@@ -1,0 +1,13 @@
+{
+  "_comment": "Replace __INSTALL_DIR__ with the absolute path of this repo, or copy configs/generated/claude-desktop.json after running ./install.sh.",
+  "mcpServers": {
+    "ghidra": {
+      "command": "__INSTALL_DIR__/venv/bin/python",
+      "args": [
+        "__INSTALL_DIR__/GhidraMCP/bridge_mcp_ghidra.py",
+        "--ghidra-server",
+        "http://127.0.0.1:8080/"
+      ]
+    }
+  }
+}

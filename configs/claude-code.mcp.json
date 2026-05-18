@@ -1,0 +1,14 @@
+{
+  "_comment": "Replace __INSTALL_DIR__ with the absolute path of this repo. Save as .mcp.json in a project directory (project-scoped), or use 'claude mcp add' for global scope.",
+  "mcpServers": {
+    "ghidra": {
+      "type": "stdio",
+      "command": "__INSTALL_DIR__/venv/bin/python",
+      "args": [
+        "__INSTALL_DIR__/GhidraMCP/bridge_mcp_ghidra.py",
+        "--ghidra-server",
+        "http://127.0.0.1:8080/"
+      ]
+    }
+  }
+}
