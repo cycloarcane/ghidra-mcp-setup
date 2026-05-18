@@ -17,3 +17,13 @@ configs/generated/
 .vscode/
 *.swp
 __pycache__/
+
+# Ghidra project state (don't commit user analysis projects into this repo)
+*.gpr
+*.rep/
+*.lock
+*.lock~
+
+# Test binaries / sample inputs users drop in to try the setup
+ghidratestprioject/
+samples/

@@ -109,16 +109,25 @@ else
   warn "No requirements.txt in GhidraMCP — installed mcp + requests as fallback"
 fi
 
-# ─── fetch latest Ghidra plugin release ────────────────────────────────────
+# ─── fetch + unwrap the Ghidra plugin release ──────────────────────────────
+#
+# Upstream ships a wrapper: GhidraMCP-release-N-N.zip contains an inner
+# GhidraMCP-N-N.zip which is the file Ghidra's "Install Extensions" UI
+# actually wants. We download the outer, then extract the inner. Both steps
+# are independent and idempotent: re-runs heal partial state.
 mkdir -p extensions
-if ls extensions/GhidraMCP-*.zip >/dev/null 2>&1; then
-  info "Plugin ZIP already present in extensions/ — skipping download"
-else
+
+# Step A: ensure the outer release ZIP is on disk.
+OUTER=$(ls extensions/GhidraMCP-release-*.zip 2>/dev/null | head -1 || true)
+# Also count a non-release-prefixed ZIP as "already have it" — covers cases
+# where upstream stops using the wrapper in a future release.
+ANY_INNER=$(ls extensions/GhidraMCP-[0-9]*.zip 2>/dev/null | head -1 || true)
+
+if [ -z "$OUTER" ] && [ -z "$ANY_INNER" ]; then
   info "Fetching latest GhidraMCP release ZIP from GitHub..."
   RELEASE_API="https://api.github.com/repos/${GHIDRAMCP_OWNER}/releases/latest"
   RELEASE_JSON=$(curl -fsSL "$RELEASE_API" || true)
 
-  # Prefer jq if available; fall back to grep parsing.
   RELEASE_URL=""
   if command -v jq >/dev/null 2>&1; then
     RELEASE_URL=$(printf "%s" "$RELEASE_JSON" | jq -r '.assets[]?.browser_download_url | select(test("GhidraMCP-.*\\.zip$"))' | head -1 || true)
@@ -158,6 +167,7 @@ else
         info "SHA256: $HASH"
         info "Verify out-of-band against https://github.com/${GHIDRAMCP_OWNER}/releases"
       fi
+      OUTER="extensions/$FNAME"
     else
       rm -f "$TMP"
       warn "Download failed. Fetch the ZIP manually from"
@@ -169,7 +179,50 @@ else
     warn "  https://github.com/${GHIDRAMCP_OWNER}/releases"
     warn "and drop the ZIP into ./extensions/"
   fi
+else
+  [ -n "$OUTER" ] && info "Outer release ZIP already present: $OUTER"
 fi
+
+# Step B: extract the inner extension ZIP from the outer wrapper, if needed.
+# Idempotent — skip if a non-wrapper GhidraMCP-*.zip is already in extensions/.
+INNER_ZIP=$(ls extensions/GhidraMCP-[0-9]*.zip 2>/dev/null | head -1 || true)
+if [ -z "$INNER_ZIP" ] && [ -n "$OUTER" ]; then
+  info "Extracting inner extension ZIP from $OUTER ..."
+  INNER=$(python3 - "$OUTER" extensions <<'PY'
+import sys, os, zipfile
+src, outdir = sys.argv[1], sys.argv[2]
+try:
+    with zipfile.ZipFile(src) as z:
+        for info in z.infolist():
+            bn = os.path.basename(info.filename)
+            # Want an inner extension ZIP: starts GhidraMCP-, ends .zip,
+            # and isn't the outer wrapper itself.
+            if (bn.lower().startswith("ghidramcp-")
+                    and bn.lower().endswith(".zip")
+                    and "release" not in bn.lower()
+                    and bn != os.path.basename(src)):
+                dst = os.path.join(outdir, bn)
+                with z.open(info) as f, open(dst, "wb") as out:
+                    out.write(f.read())
+                with zipfile.ZipFile(dst):  # sanity-check it's a valid zip
+                    pass
+                print(bn)
+                break
+except Exception as e:
+    print(f"ERR:{e}", file=sys.stderr)
+PY
+)
+  if [ -n "$INNER" ]; then
+    INNER_ZIP="extensions/$INNER"
+    ok "Extracted $INNER_ZIP"
+  else
+    warn "No inner extension ZIP found inside $OUTER — point Ghidra at $OUTER directly and see if it accepts it."
+  fi
+fi
+
+# Step C: pick the plugin ZIP path to advertise in the final summary.
+# Prefer the inner extension; fall back to the outer wrapper if extraction failed.
+PLUGIN_ZIP="${INNER_ZIP:-$OUTER}"
 
 # ─── generate client configs with absolute paths ───────────────────────────
 mkdir -p configs/generated
@@ -240,9 +293,19 @@ echo
 printf "%s%sInstallation complete.%s\n" "$BOLD" "$GREEN" "$NC"
 echo
 echo "Next steps:"
-echo "  1. Install the Ghidra plugin ZIP (in ./extensions/):"
-echo "       Ghidra → File → Install Extensions → (+) → select the ZIP → restart"
-echo "       Then: Code Browser → File → Configure → Developer → tick GhidraMCPPlugin"
+echo "  1. Install the Ghidra plugin:"
+if [ -n "${PLUGIN_ZIP:-}" ]; then
+  echo "       Ghidra → File → Install Extensions → (+)"
+  echo "       Select: $SCRIPT_DIR/$PLUGIN_ZIP"
+  echo "       Restart Ghidra, then: Code Browser → File → Configure → Developer → tick GhidraMCPPlugin"
+  echo
+  echo "     If Ghidra shows 'Extension Version Mismatch' (e.g. plugin built for 11.3.2"
+  echo "     vs your Ghidra 12.x), click 'Install Anyway'. The bridge uses stable APIs"
+  echo "     and usually works across minor versions. If the plugin fails to load after"
+  echo "     restart, see the Version mismatch section in TUTORIAL.md."
+else
+  echo "       (No plugin ZIP detected in ./extensions/ — download it manually first.)"
+fi
 echo
 echo "  2. Wire up your MCP client (pick one):"
 echo "       Claude Desktop  →  configs/generated/claude-desktop.json"

@@ -69,10 +69,45 @@ configs/generated/*         ready-to-paste client configs
 
 ## Step 2 — Install the plugin inside Ghidra
 
-1. Launch Ghidra: `~/tools/ghidra_11.3.2_PUBLIC/ghidraRun`
+Heads-up on what's in `./extensions/`:
+
+```
+extensions/
+├── GhidraMCP-release-1-4.zip   ← outer release wrapper (NOT what Ghidra wants)
+└── GhidraMCP-1-4.zip           ← actual extension — point Ghidra at THIS one
+```
+
+The installer auto-extracts the inner ZIP. If for some reason it didn't,
+`unzip extensions/GhidraMCP-release-*.zip -d extensions/` will produce it.
+
+1. Launch Ghidra (`./ghidraRun` from your Ghidra install dir)
 2. **File → Install Extensions → "+"**
-3. Browse to `ghidra-mcp-setup/extensions/GhidraMCP-*.zip` and select it
+3. Select the **inner** `extensions/GhidraMCP-N-N.zip` (not the `*-release-*.zip`)
 4. Click **OK**, then restart Ghidra when prompted
+
+### Version mismatch?
+
+If Ghidra warns "Extension Version Mismatch" (e.g. plugin built for 11.3.2,
+your Ghidra is 12.0.x):
+
+- **First try: click "Install Anyway".** The LaurieWired bridge uses stable
+  Ghidra APIs (HTTP server, decompiler interface, function manager) and
+  usually survives minor version bumps. Restart Ghidra and check whether
+  `GhidraMCPPlugin` appears under Configure → Developer.
+- **If the plugin fails to load** (no entry in Configure, or Ghidra logs an
+  exception on startup), you have three options:
+  1. **Build from source against your Ghidra version** (cleanest):
+     ```bash
+     cd GhidraMCP
+     export GHIDRA_INSTALL_DIR=/path/to/ghidra_12.0.4_PUBLIC
+     gradle -PGHIDRA_INSTALL_DIR="$GHIDRA_INSTALL_DIR"
+     # produces dist/*.zip — install that ZIP via Ghidra's Install Extensions UI
+     ```
+     Requires Gradle 7+ and the JDK matching your Ghidra.
+  2. **Downgrade Ghidra** to a version the plugin officially supports (11.3.x
+     or 11.4.x) — easiest if you don't already depend on 12.x features.
+  3. **Wait or check upstream** for a newer release —
+     `github.com/LaurieWired/GhidraMCP/releases`. Updates lag Ghidra releases.
 
 Open or create a project, then double-click a binary to launch **Code Browser**.
 In Code Browser:
@@ -215,9 +250,12 @@ Ghidra plugin isn't enabled, or Code Browser isn't open. The HTTP server only
 runs while a project is loaded in Code Browser. Re-check Step 2.
 
 **Plugin doesn't appear under "Developer" in Configure.**
-The plugin ZIP wasn't installed (or the wrong inner ZIP was picked). The
-release archive sometimes contains a nested ZIP — install the inner one if
-needed. Restart Ghidra after installing.
+The plugin ZIP wasn't installed (or the outer release wrapper was selected
+instead of the inner extension). The release archive
+`GhidraMCP-release-N-N.zip` *contains* the actual extension
+`GhidraMCP-N-N.zip` — install the inner one. The installer auto-extracts it
+to `./extensions/`; if it's missing, `unzip` the outer ZIP manually. Restart
+Ghidra after installing. If you hit a version mismatch warning, see Step 2.
 
 **Client says `ghidra` failed to start.**
 Try running the exact command from the config manually:
