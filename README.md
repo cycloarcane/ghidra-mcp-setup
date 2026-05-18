@@ -16,7 +16,7 @@ This wraps [`LaurieWired/GhidraMCP`](https://github.com/LaurieWired/GhidraMCP) �
 the canonical Ghidra MCP plugin — with a Python venv, a shell-agnostic launcher,
 and pre-generated client configs.
 
-![Gemma 4 31B running locally via Ollama, chaining list_functions and two decompile_function calls through GhidraMCP, then correctly identifying a stripped binary as GNU coreutils whoami — naming the entry → __libc_start_main → main flow, the setlocale/bindtextdomain locale init, and the geteuid → getpwuid → puts core logic](./docs/demo.png)
+![Gemma 4 31B running locally via Ollama, chaining list_functions and two decompile_function calls through GhidraMCP, then correctly identifying a stripped binary as GNU coreutils whoami — naming the entry → __libc_start_main → main flow, the setlocale/bindtextdomain locale init, and the geteuid → getpwuid → puts core logic](./docs/demo-whoami.png)
 
 *Gemma 4 31B (running locally on Ollama) chained `list_functions` and two
 `decompile_function` calls through GhidraMCP, then correctly identified a
