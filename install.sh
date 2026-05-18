@@ -28,11 +28,12 @@ GHIDRAMCP_REF="${GHIDRAMCP_REF:-}"
 GHIDRAMCP_OWNER="${GHIDRAMCP_OWNER:-LaurieWired/GhidraMCP}"
 GHIDRA_PORT="${GHIDRA_PORT:-8080}"
 MCP_SSE_PORT="${MCP_SSE_PORT:-8081}"
+MCPO_PORT="${MCPO_PORT:-8000}"
 
 # Validate ports look like sensible integers (not user-attacker-controlled here,
 # but we splice these into generated configs so a non-numeric value would write
 # broken JSON. Fail loud instead of silently producing garbage.)
-for portname in GHIDRA_PORT MCP_SSE_PORT; do
+for portname in GHIDRA_PORT MCP_SSE_PORT MCPO_PORT; do
   portval="${!portname}"
   if ! [[ "$portval" =~ ^[0-9]+$ ]] || [ "$portval" -lt 1 ] || [ "$portval" -gt 65535 ]; then
     echo "[-] $portname='$portval' is not a valid TCP port" >&2
@@ -127,6 +128,12 @@ else
   ./venv/bin/pip install --quiet mcp requests
   warn "No requirements.txt in GhidraMCP — installed mcp + requests as fallback"
 fi
+
+# mcpo: MCP-to-OpenAPI proxy by the Open WebUI team. Only the Open WebUI path
+# needs this — Open WebUI's "Tools" feature consumes OpenAPI, not raw MCP/SSE.
+# Cheap to install for everyone; users on Claude/gemini-cli paths just ignore it.
+./venv/bin/pip install --quiet mcpo
+ok "mcpo installed (for the Open WebUI / Ollama path)"
 
 # ─── fetch + unwrap the Ghidra plugin release ──────────────────────────────
 #
@@ -296,23 +303,31 @@ cat > configs/generated/claude-code.mcp.json <<EOF
 }
 EOF
 
-cat > configs/generated/ollama-openwebui.sse.txt <<EOF
-# Ollama path: run the bridge in SSE mode, then point Open WebUI at it.
+cat > configs/generated/ollama-openwebui.txt <<EOF
+# Ollama via Open WebUI
+# =====================
+# Open WebUI's "Tools" feature consumes OpenAPI, not raw MCP/SSE. The bridge
+# alone won't work — pointing OWUI at /sse returns 404 on /sse/openapi.json.
+# Use mcpo (MCP-to-OpenAPI proxy by the Open WebUI team) in front of it.
 #
-# NOTE: Open WebUI itself defaults to port 8080. If you run both on the same
-# machine, give Ghidra a different port (GHIDRA_PORT=9090 ./install.sh) and
-# pick an MCP SSE port that doesn't collide either.
+# Ports (override with MCPO_PORT=... GHIDRA_PORT=... ./install.sh):
+#   GHIDRA_PORT = $GHIDRA_PORT   (Ghidra plugin HTTP — must match Ghidra options)
+#   MCPO_PORT   = $MCPO_PORT     (OpenAPI proxy Open WebUI talks to)
 #
-# Current generated values:
-#   GHIDRA_PORT  = $GHIDRA_PORT    (Ghidra plugin HTTP)
-#   MCP_SSE_PORT = $MCP_SSE_PORT    (this bridge's SSE listener)
+# Note: Open WebUI itself binds 8080 by default — keep GHIDRA_PORT off 8080.
 #
-# Start the bridge:
-$BRIDGE --transport sse --mcp-host 127.0.0.1 --mcp-port $MCP_SSE_PORT --ghidra-server $GHIDRA_SERVER_URL
-
-# Then in Open WebUI: Settings → Tools → Add MCP Server
-#   URL:  http://127.0.0.1:$MCP_SSE_PORT/sse
+# Start the proxy + bridge as one process:
+$SCRIPT_DIR/venv/bin/mcpo --port $MCPO_PORT -- \\
+    $SCRIPT_DIR/venv/bin/python \\
+    $SCRIPT_DIR/GhidraMCP/bridge_mcp_ghidra.py \\
+    --ghidra-server $GHIDRA_SERVER_URL
+#
+# Then in Open WebUI: Settings → Tools → "+"
+#   URL:  http://127.0.0.1:$MCPO_PORT
+#   (OWUI auto-discovers the schema at /openapi.json)
 EOF
+# Drop a stale SSE-mode hint from earlier installs so users don't follow it
+rm -f configs/generated/ollama-openwebui.sse.txt
 
 ok "Generated client configs in configs/generated/ (Ghidra port: $GHIDRA_PORT)"
 
@@ -339,7 +354,7 @@ echo "  2. Wire up your MCP client (pick one):"
 echo "       Claude Desktop  →  configs/generated/claude-desktop.json"
 echo "       Claude Code     →  configs/generated/claude-code.mcp.json"
 echo "       gemini-cli      →  configs/generated/gemini-cli.json"
-echo "       Ollama (WebUI)  →  configs/generated/ollama-openwebui.sse.txt"
+echo "       Ollama (WebUI)  →  configs/generated/ollama-openwebui.txt"
 echo
 echo "     See TUTORIAL.md for exactly where to drop each one."
 echo

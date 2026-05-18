@@ -208,24 +208,34 @@ up.
 
 ### D) Ollama (via Open WebUI)
 
-Ollama itself doesn't speak MCP — Open WebUI is the easiest bridge. Assuming
-you already have [Open WebUI](https://github.com/open-webui/open-webui) running
-against your local Ollama:
+Ollama doesn't speak MCP, and Open WebUI's "Tools" feature speaks **OpenAPI**,
+not raw MCP/SSE. Pointing it at the bridge's `/sse` URL returns 404 on
+`/sse/openapi.json`. The supported path uses
+[`mcpo`](https://github.com/open-webui/mcpo) — a small MCP-to-OpenAPI proxy
+by the Open WebUI team — in front of the bridge.
 
-1. Start the GhidraMCP bridge in **SSE** mode:
+Architecture:
 
-   ```bash
-   ./run-bridge.sh --transport sse \
-                   --mcp-host 127.0.0.1 \
-                   --mcp-port 8081 \
-                   --ghidra-server http://127.0.0.1:8080/
-   ```
+```
+Ghidra :9090  ←  bridge_mcp_ghidra.py (stdio)  ←  mcpo :8000 (OpenAPI)  ←  Open WebUI
+```
 
-   Leave it running in a separate terminal (or under tmux / systemd).
+The installer pip-installs `mcpo` into the venv, and the generated
+`configs/generated/ollama-openwebui.txt` has the exact command with your
+chosen ports baked in. Run it in a spare terminal:
 
-2. In Open WebUI: **Settings → Tools → "+" → Add MCP Server**
-   - URL: `http://127.0.0.1:8081/sse`
-   - Name: `ghidra`
+```bash
+./venv/bin/mcpo --port 8000 -- \
+    ./venv/bin/python ./GhidraMCP/bridge_mcp_ghidra.py \
+    --ghidra-server http://127.0.0.1:9090/
+```
+
+(Adjust `--port 8000` and the Ghidra port to whatever you actually use.)
+
+Then in Open WebUI: **Settings → Tools → "+"**
+- URL: `http://127.0.0.1:8000`
+- Open WebUI auto-discovers the OpenAPI schema at `/openapi.json` and
+  populates the tool list automatically.
 
 3. Pick a model that's good at tool-calling. For 24 GB VRAM:
    - `qwen2.5-coder:32b` — best all-rounder for RE tasks
@@ -298,9 +308,12 @@ export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 set -x JAVA_HOME /usr/lib/jvm/java-21-openjdk
 ```
 
-**Open WebUI doesn't see the tools.**
-Confirm `curl http://127.0.0.1:8081/sse` returns an `event-stream` response.
-If not, the bridge isn't running in SSE mode — check the flags in Step 3D.
+**Open WebUI doesn't see the tools / "Failed to fetch openapi.json".**
+You're probably pointing it at the raw bridge SSE URL — that won't work,
+OWUI wants OpenAPI. Run `mcpo` in front of the bridge (Step 3D) and point
+Open WebUI at `http://127.0.0.1:8000` instead. Sanity check:
+`curl http://127.0.0.1:8000/openapi.json | head -20` should return JSON
+listing the tools.
 
 **Activating the venv manually.**
 
